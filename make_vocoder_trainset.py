@@ -20,10 +20,10 @@ def main():
     trainset = EMGDataset(dev=False,test=False)
     devset = EMGDataset(dev=True)
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'mps'
 
     n_phones = len(phoneme_inventory)
-    model = Model(devset.num_features, devset.num_speech_features, n_phones, devset.num_sessions).to(device)
+    model = Model(devset.num_features, devset.num_speech_features, n_phones).to(device)
     state_dict = torch.load(FLAGS.model)
     model.load_state_dict(state_dict)
 

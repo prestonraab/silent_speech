@@ -43,11 +43,11 @@ def main():
     dev = FLAGS.dev
     testset = EMGDataset(dev=dev, test=not dev)
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = torch.device("mps")
 
     models = []
     for fname in FLAGS.models:
-        state_dict = torch.load(fname)
+        state_dict = torch.load(fname, map_location=torch.device(device))
         model = Model(testset.num_features, testset.num_speech_features, len(phoneme_inventory)).to(device)
         model.load_state_dict(state_dict)
         models.append(model)

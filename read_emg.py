@@ -139,6 +139,33 @@ class SizeAwareSampler(torch.utils.data.Sampler):
             batch_length += length
         # dropping last incomplete batch
 
+
+    def __len__(self):
+        return self.estimate_num_batches()
+
+    def estimate_num_batches(self):
+        indices = list(range(len(self.dataset)))
+        total_batches = 0
+        batch_length = 0
+
+        for idx in indices:
+            directory_info, file_idx = self.dataset.example_indices[idx]
+            with open(os.path.join(directory_info.directory, f'{file_idx}_info.json')) as f:
+                info = json.load(f)
+            if not np.any([l in string.ascii_letters for l in info['text']]):
+                continue
+            length = sum([emg_len for emg_len, _, _ in info['chunks']])
+            if length > self.max_len:
+                total_batches += 1
+                continue
+            if batch_length + length > self.max_len:
+                total_batches += 1
+                batch_length = 0
+            batch_length += length
+        if batch_length > 0:
+            total_batches += 1
+        return total_batches
+
 class EMGDataset(torch.utils.data.Dataset):
     def __init__(self, base_dir=None, limit_length=False, dev=False, test=False, no_testset=False, no_normalizers=False):
 
@@ -237,7 +264,7 @@ class EMGDataset(torch.utils.data.Dataset):
 
         text_int = np.array(self.text_transform.text_to_int(text), dtype=np.int64)
 
-        result = {'audio_features':torch.from_numpy(mfccs).pin_memory(), 'emg':torch.from_numpy(emg).pin_memory(), 'text':text, 'text_int': torch.from_numpy(text_int).pin_memory(), 'file_label':idx, 'session_ids':torch.from_numpy(session_ids).pin_memory(), 'book_location':book_location, 'silent':directory_info.silent, 'raw_emg':torch.from_numpy(raw_emg).pin_memory()}
+        result = {'audio_features':torch.from_numpy(mfccs), 'emg':torch.from_numpy(emg), 'text':text, 'text_int': torch.from_numpy(text_int), 'file_label':idx, 'session_ids':torch.from_numpy(session_ids), 'book_location':book_location, 'silent':directory_info.silent, 'raw_emg':torch.from_numpy(raw_emg)}
 
         if directory_info.silent:
             voiced_directory, voiced_idx = self.voiced_data_locations[book_location]
@@ -248,12 +275,12 @@ class EMGDataset(torch.utils.data.Dataset):
                 voiced_emg = self.emg_norm.normalize(voiced_emg)
                 voiced_emg = 8*np.tanh(voiced_emg/8.)
 
-            result['parallel_voiced_audio_features'] = torch.from_numpy(voiced_mfccs).pin_memory()
-            result['parallel_voiced_emg'] = torch.from_numpy(voiced_emg).pin_memory()
+            result['parallel_voiced_audio_features'] = torch.from_numpy(voiced_mfccs)
+            result['parallel_voiced_emg'] = torch.from_numpy(voiced_emg)
 
             audio_file = f'{voiced_directory.directory}/{voiced_idx}_audio_clean.flac'
 
-        result['phonemes'] = torch.from_numpy(phonemes).pin_memory() # either from this example if vocalized or aligned example if silent
+        result['phonemes'] = torch.from_numpy(phonemes) # either from this example if vocalized or aligned example if silent
         result['audio_file'] = audio_file
 
         return result

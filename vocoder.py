@@ -21,7 +21,7 @@ class Vocoder(object):
         with open(config_file) as f:
             hparams = AttrDict(json.load(f))
         self.generator = Generator(hparams).to(device)
-        self.generator.load_state_dict(torch.load(checkpoint_file)['generator'])
+        self.generator.load_state_dict(torch.load(checkpoint_file, map_location=torch.device(device))['generator'])
         self.generator.eval()
         self.generator.remove_weight_norm()
 

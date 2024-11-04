@@ -1,9 +1,11 @@
 import random
 
+import torch
 from torch import nn
 import torch.nn.functional as F
 
-from transformer import TransformerEncoderLayer
+# from my_transformer import TransformerEncoderLayer
+from torch.nn import TransformerEncoderLayer
 
 from absl import flags
 FLAGS = flags.FLAGS
@@ -39,6 +41,26 @@ class ResBlock(nn.Module):
 
         return F.relu(x + res)
 
+
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.pe = nn.Parameter(pe, requires_grad=False)
+
+    def forward(self, x):
+        x = x + self.pe[:x.size(0), :]
+        return self.dropout(x)
+
+
 class Model(nn.Module):
     def __init__(self, num_features, num_outs, num_aux_outs=None):
         super().__init__()
@@ -50,7 +72,8 @@ class Model(nn.Module):
         )
         self.w_raw_in = nn.Linear(FLAGS.model_size, FLAGS.model_size)
 
-        encoder_layer = TransformerEncoderLayer(d_model=FLAGS.model_size, nhead=8, relative_positional=True, relative_positional_distance=100, dim_feedforward=3072, dropout=FLAGS.dropout)
+        # encoder_layer = TransformerEncoderLayer(d_model=FLAGS.model_size, nhead=8, relative_positional=True, relative_positional_distance=100, dim_feedforward=3072, dropout=FLAGS.dropout)
+        encoder_layer = TransformerEncoderLayer(d_model=FLAGS.model_size, nhead=8, dim_feedforward=3072, dropout=FLAGS.dropout, batch_first=True)
         self.transformer = nn.TransformerEncoder(encoder_layer, FLAGS.num_layers)
         self.w_out = nn.Linear(FLAGS.model_size, num_outs)
 
@@ -74,9 +97,9 @@ class Model(nn.Module):
 
         x = x_raw
 
-        x = x.transpose(0,1) # put time first
-        x = self.transformer(x)
-        x = x.transpose(0,1)
+        # x = x.transpose(0,1) # put time first
+        # x = self.transformer(x)
+        # x = x.transpose(0,1)
 
         if self.has_aux_out:
             return self.w_out(x), self.w_aux(x)
